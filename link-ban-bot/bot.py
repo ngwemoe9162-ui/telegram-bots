@@ -1,4 +1,3 @@
-```python
 import os
 import re
 import logging
@@ -345,4 +344,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
