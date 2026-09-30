@@ -1,0 +1,300 @@
+```python
+import os
+import logging
+
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
+
+
+# ==========================================
+# CONFIG
+# ==========================================
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+SHOP_NAME = "IVR SHOP"
+SHOP_DESCRIPTION = "Diamond • UC • Game Packages"
+
+SHOP_URL = "https://t.me/inverisel"
+SUPPORT_URL = "https://t.me/iveriselkun"
+SHOP_WEB_URL = "https://ngwemoe9162-ui.github.io/ivr-telegram-backend/"
+
+DELETE_AFTER_SECONDS = 10
+
+
+# ==========================================
+# LOGGING
+# ==========================================
+
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+)
+
+logger = logging.getLogger(__name__)
+
+
+# ==========================================
+# START
+# ==========================================
+
+async def start(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+
+    message = update.effective_message
+    user = update.effective_user
+
+    if not message or not user:
+        return
+
+    name = user.first_name or "there"
+
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                "🛒 Shop Now",
+                url=SHOP_WEB_URL
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "📢 Official Channel",
+                url=SHOP_URL
+            ),
+            InlineKeyboardButton(
+                "💬 Support",
+                url=SUPPORT_URL
+            ),
+        ],
+    ]
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    text = (
+        f"👋 Welcome, <b>{name}</b>!\n\n"
+        f"💎 <b>{SHOP_NAME}</b>\n"
+        f"{SHOP_DESCRIPTION}\n\n"
+        f"⚡ Fast • Secure • Easy\n"
+        f"🛍️ Thank you for joining us!\n\n"
+        f"✨ <i>Enjoy your stay.</i>"
+    )
+
+    await message.reply_text(
+        text,
+        parse_mode="HTML",
+        reply_markup=reply_markup,
+    )
+
+
+# ==========================================
+# WELCOME NEW MEMBERS
+# ==========================================
+
+async def welcome_new_member(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+
+    message = update.effective_message
+
+    if not message:
+        return
+
+    new_members = message.new_chat_members
+
+    if not new_members:
+        return
+
+    for user in new_members:
+
+        # Ignore bots
+        if user.is_bot:
+            continue
+
+        name = user.first_name or "there"
+
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    "🛒 SHOP NOW",
+                    url=SHOP_WEB_URL
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "📢 CHANNEL",
+                    url=SHOP_URL
+                ),
+                InlineKeyboardButton(
+                    "💬 SUPPORT",
+                    url=SUPPORT_URL
+                ),
+            ],
+        ]
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        welcome_text = (
+            f"👋 <b>WELCOME, {name.upper()}!</b>\n\n"
+            f"💎 <b>{SHOP_NAME}</b>\n\n"
+            f"🎮 Diamond • UC • Game Packages\n"
+            f"⚡ Fast Delivery\n"
+            f"🔐 Safe & Secure\n"
+            f"💯 Trusted Service\n\n"
+            f"✨ <i>We're happy to have you here!</i>\n\n"
+            f"👇 Choose an option below"
+        )
+
+        try:
+
+            sent_message = await message.reply_text(
+                welcome_text,
+                parse_mode="HTML",
+                reply_markup=reply_markup,
+            )
+
+            # Delete welcome after 10 seconds
+            if context.job_queue:
+
+                context.job_queue.run_once(
+                    delete_welcome,
+                    DELETE_AFTER_SECONDS,
+                    data={
+                        "chat_id": sent_message.chat_id,
+                        "message_id": sent_message.message_id,
+                    },
+                )
+
+            logger.info(
+                f"Welcome message sent to {name}."
+            )
+
+        except Exception as e:
+
+            logger.error(
+                f"Could not send welcome message: {e}"
+            )
+
+
+# ==========================================
+# DELETE WELCOME
+# ==========================================
+
+async def delete_welcome(
+    context: ContextTypes.DEFAULT_TYPE
+):
+
+    job = context.job
+
+    if not job:
+        return
+
+    data = job.data
+
+    if not data:
+        return
+
+    try:
+
+        await context.bot.delete_message(
+            chat_id=data["chat_id"],
+            message_id=data["message_id"],
+        )
+
+        logger.info(
+            "Welcome message deleted."
+        )
+
+    except Exception as e:
+
+        logger.warning(
+            f"Could not delete welcome message: {e}"
+        )
+
+
+# ==========================================
+# ERROR HANDLER
+# ==========================================
+
+async def error_handler(
+    update: object,
+    context: ContextTypes.DEFAULT_TYPE
+):
+
+    logger.error(
+        "Exception while handling update:",
+        exc_info=context.error
+    )
+
+
+# ==========================================
+# MAIN
+# ==========================================
+
+def main():
+
+    if not BOT_TOKEN:
+
+        print(
+            "ERROR: BOT_TOKEN environment variable "
+            "is not configured."
+        )
+
+        return
+
+    app = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .build()
+    )
+
+    # /start
+    app.add_handler(
+        CommandHandler(
+            "start",
+            start
+        )
+    )
+
+    # New members
+    app.add_handler(
+        MessageHandler(
+            filters.StatusUpdate.NEW_CHAT_MEMBERS,
+            welcome_new_member
+        )
+    )
+
+    # Error handler
+    app.add_error_handler(
+        error_handler
+    )
+
+    print("================================")
+    print("   IVR SMART WELCOME BOT")
+    print("================================")
+    print("👋 Welcome system: ON")
+    print("🗑️ Auto-delete: 10 seconds")
+    print("🔘 Buttons: ON")
+    print("🤖 Bot is running...")
+    print("================================")
+
+    app.run_polling(
+        allowed_updates=Update.ALL_TYPES
+    )
+
+
+# ==========================================
+# RUN
+# ==========================================
+
+if __name__ == "__main__":
+    main()
+```
